@@ -1,4 +1,4 @@
-import { Bar, Pie, Line, Doughnut } from 'react-chartjs-2';
+import { Bar, Pie, Line, Doughnut, Scatter } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -80,6 +80,9 @@ const getOptions = (type) => ({
       bodyFont: { family: 'Inter, system-ui, sans-serif' },
       callbacks: {
         label: (ctx) => {
+          if (type === 'scatter') {
+            return ` ${ctx.dataset.label || ''}: (${ctx.parsed.x}, ${ctx.parsed.y})`;
+          }
           const val = ctx.parsed?.y ?? ctx.parsed;
           const num = typeof val === 'number' ? val.toLocaleString() : val;
           return ` ${ctx.dataset.label || ''}: ${num}`;
@@ -87,9 +90,10 @@ const getOptions = (type) => ({
       },
     },
   },
-  scales: ['bar', 'line'].includes(type)
+  scales: ['bar', 'line', 'scatter'].includes(type)
     ? {
         x: {
+          type: type === 'scatter' ? 'linear' : 'category',
           grid: { color: 'rgba(34,211,238,0.06)', drawBorder: false },
           ticks: {
             color: '#64748b',
@@ -117,17 +121,42 @@ const getOptions = (type) => ({
 });
 
 const ChartRenderer = ({ chartSpec }) => {
-  if (!chartSpec?.data?.labels) return null;
+  if (!chartSpec?.data) return null;
 
   const type = chartSpec.type || 'bar';
-  const data = {
-    labels: chartSpec.data.labels,
-    datasets: buildDatasets(chartSpec.data.datasets || [], type),
-  };
+  
+  // Handle scatter plot data format
+  let data;
+  if (type === 'scatter' && chartSpec.data.x && chartSpec.data.y) {
+    // Transform scatter data format from backend
+    const scatterData = chartSpec.data.x.values.map((x, i) => ({
+      x: x,
+      y: chartSpec.data.y.values[i]
+    }));
+    
+    data = {
+      datasets: [{
+        label: `${chartSpec.data.y.column} vs ${chartSpec.data.x.column}`,
+        data: scatterData,
+        backgroundColor: PALETTE[0] + 'cc',
+        borderColor: PALETTE[0],
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      }]
+    };
+  } else {
+    // Standard chart data format
+    if (!chartSpec.data.labels) return null;
+    data = {
+      labels: chartSpec.data.labels,
+      datasets: buildDatasets(chartSpec.data.datasets || [], type),
+    };
+  }
+  
   const options = getOptions(type);
   const props = { data, options };
 
-  const ChartMap = { bar: Bar, pie: Pie, line: Line, doughnut: Doughnut };
+  const ChartMap = { bar: Bar, pie: Pie, line: Line, doughnut: Doughnut, scatter: Scatter };
   const ChartComponent = ChartMap[type];
 
   return (

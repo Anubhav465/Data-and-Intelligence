@@ -17,6 +17,13 @@ class AnalyticsState(TypedDict):
     table_names: Optional[List[str]]
     document_ids: Optional[List[str]]  # For document RAG queries
     
+    # Memory & Session (NEW)
+    session_id: Optional[str]
+    conversation_history: Optional[List[Dict[str, Any]]]
+    user_profile: Optional[Dict[str, Any]]
+    key_findings: Optional[List[str]]
+    conversation_summary: Optional[str]
+    
     # Schema context
     schema_context: Optional[str]
     relevant_tables: Optional[List[str]]
@@ -87,11 +94,27 @@ class ForecastResult(BaseModel):
 
 
 class IntentClassification(BaseModel):
+    """Intent classification for routing user queries"""
+    intent: str = Field(description="Classified intent: greeting, name_introduction, casual_chat, sql_query, metadata, forecast, anomaly, knowledge_graph, summary, out_of_scope")
+    rejection_reason: Optional[str] = Field(description="Reason for out_of_scope classification", default=None)
+
+
+class MetadataResponse(BaseModel):
+    """Structured output for metadata queries"""
+    response_type: str = Field(description="Type of metadata: columns, shape, missing_values, preview, statistics")
+    data: Dict[str, Any] = Field(description="Metadata information")
+    summary: str = Field(description="Human-readable summary of the metadata")
+
+
+class IntentClassificationOld(BaseModel):
     """Structured output for intent detection"""
-    intent: str = Field(description="Primary intent: sql_query, forecast, anomaly, or summary")
+    intent: str = Field(description="Primary intent: greeting, name_introduction, casual_chat, sql_query, forecast, anomaly, knowledge_graph, summary, or out_of_scope")
     confidence: float = Field(description="Confidence score 0-1", ge=0, le=1)
     requires_sql: bool = Field(description="Whether SQL execution is needed")
     requires_forecast: bool = Field(description="Whether forecasting is needed")
     requires_anomaly_detection: bool = Field(description="Whether anomaly detection is needed")
+    is_conversational: bool = Field(description="Whether this is a conversational/greeting intent", default=False)
+    is_out_of_scope: bool = Field(description="Whether question is outside analytics domain (weather, sports, general knowledge, etc.)", default=False)
+    rejection_reason: Optional[str] = Field(description="Why the question is out of scope", default=None)
 
 # Made with Bob

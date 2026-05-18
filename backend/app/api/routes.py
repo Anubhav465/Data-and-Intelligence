@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.graph import get_workflow
+from app.memory import get_memory_manager
 
 # Import existing modules for upload functionality
 import sys
@@ -49,6 +50,7 @@ app.add_middleware(
 
 class QuestionRequest(BaseModel):
     question: str
+    session_id: Optional[str] = None  # NEW: Session management
     table_name: Optional[str] = None
     table_names: Optional[List[str]] = None
 
@@ -60,7 +62,8 @@ def health_check():
     return {
         "status": "Neural Analytics 3.0 running",
         "version": "3.0.0",
-        "powered_by": "LangChain + LangGraph"
+        "powered_by": "LangChain + LangGraph",
+        "features": ["conversation_memory", "session_management"]
     }
 
 
@@ -74,8 +77,26 @@ def ask_question(request: QuestionRequest):
     - Without table_name: queries the Olist PostgreSQL dataset
     - With table_name: queries a previously uploaded CSV table
     - Supports multi-table queries (up to 5 tables)
+    - Maintains conversation memory via session_id
     """
-    print(f"[API] /ask question={request.question!r} tables={request.table_names or request.table_name}")
+    print(f"[API] /ask question={request.question!r} session={request.session_id} tables={request.table_names or request.table_name}")
+    
+    # Get memory manager
+    memory = get_memory_manager()
+    
+    # Handle session
+    session_id = request.session_id
+    if not session_id:
+        # Create new session
+        session_id = memory.create_session()
+        print(f"[API] Created new session: {session_id}")
+    else:
+        # Verify session exists
+        session = memory.get_session(session_id)
+        if not session:
+            # Session expired or invalid, create new one
+            session_id = memory.create_session()
+            print(f"[API] Session expired/invalid, created new: {session_id}")
     
     # Resolve which table(s) to query
     if request.table_names:
@@ -85,18 +106,44 @@ def ask_question(request: QuestionRequest):
     else:
         table_names = None
     
+    # Update active tables in session
+    if table_names:
+        memory.set_active_tables(session_id, table_names)
+    
     try:
         # Get the LangGraph workflow
         workflow = get_workflow()
         
+        # Retrieve conversation context
+        session = memory.get_session(session_id)
+        
         # Process the question through the workflow
         result = workflow.process_question(
             question=request.question,
-            table_names=table_names
+            table_names=table_names,
+            session_id=session_id,
+            conversation_history=session.get("conversation_history", []) if session else [],
+            user_profile=session.get("user_profile", {}) if session else {}
         )
         
         if result.get("error"):
             raise HTTPException(status_code=400, detail=result["error"])
+        
+        # Add session_id to response
+        result["session_id"] = session_id
+        
+        # Add user_name to meta if available
+        if session and session.get("user_profile", {}).get("name"):
+            result.setdefault("meta", {})["user_name"] = session["user_profile"]["name"]
+        
+        # Store conversation turn in memory
+        memory.add_conversation_turn(
+            session_id=session_id,
+            user_message=request.question,
+            assistant_response=result.get("summary") or result.get("response") or "Response generated",
+            intent=result.get("meta", {}).get("intent"),
+            extracted_facts={}
+        )
         
         return result
         
@@ -159,6 +206,30 @@ async def upload_csv(file: UploadFile = File(...)):
         )
     finally:
         cleanup_temp_file(file_path)
+
+# ========== SESSION MANAGEMENT ==========
+
+@app.get("/sessions/cleanup")
+def cleanup_sessions():
+    """Manually trigger cleanup of expired sessions"""
+    memory = get_memory_manager()
+    deleted = memory.cleanup_expired_sessions()
+    return {
+        "deleted_sessions": deleted,
+        "active_sessions": memory.get_session_count()
+    }
+
+
+@app.get("/sessions/stats")
+def session_stats():
+    """Get session statistics"""
+    memory = get_memory_manager()
+    return {
+        "active_sessions": memory.get_session_count(),
+        "backend": memory.backend,
+        "ttl_hours": memory.session_ttl.total_seconds() / 3600
+    }
+
 
 
 # ========== TABLE MANAGEMENT ==========

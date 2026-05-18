@@ -17,6 +17,7 @@ function AppInner() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const [sessionId, setSessionId] = useState(null); // NEW: Track session for memory
 
   const { activeDataset, selectedDatasets } = useDataset();
 
@@ -33,7 +34,14 @@ function AppInner() {
       const tableNames = selectedDatasets.length > 0
         ? selectedDatasets.map((d) => d.table_name)
         : null;
-      const data = await askQuestion(question, tableNames);
+      const data = await askQuestion(question, tableNames, sessionId);
+      
+      // Store session_id from response for conversation memory
+      if (data.session_id && !sessionId) {
+        setSessionId(data.session_id);
+        console.log('[Memory] Session started:', data.session_id);
+      }
+      
       setMessages((prev) => [...prev, { type: 'ai', content: data }]);
     } catch (err) {
       const errorMsg = err?.message || 'An unexpected error occurred. Please try again.';

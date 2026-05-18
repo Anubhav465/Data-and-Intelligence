@@ -88,14 +88,26 @@ const MessageBubble = ({ message }) => {
             {/* Summary */}
             {d.summary && !isError && <SummaryBlock summary={d.summary} />}
 
-            {/* Chart */}
+            {/* Chart(s) */}
             {d.chart_spec && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
               >
-                <ChartRenderer chartSpec={d.chart_spec} />
+                {Array.isArray(d.chart_spec) ? (
+                  // Multiple charts
+                  <div className="msg__charts-grid">
+                    {d.chart_spec.map((spec, idx) => (
+                      <div key={idx} className="msg__chart-item">
+                        <ChartRenderer chartSpec={spec} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  // Single chart
+                  <ChartRenderer chartSpec={d.chart_spec} />
+                )}
               </motion.div>
             )}
 

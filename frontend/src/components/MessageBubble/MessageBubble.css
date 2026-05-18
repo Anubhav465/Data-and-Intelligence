@@ -1,3 +1,31 @@
+/* Multiple charts grid layout */
+.msg__charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.msg__chart-item {
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(34, 211, 238, 0.15);
+  border-radius: 12px;
+  padding: 1rem;
+  transition: all 0.3s ease;
+}
+
+.msg__chart-item:hover {
+  border-color: rgba(34, 211, 238, 0.3);
+  box-shadow: 0 4px 20px rgba(34, 211, 238, 0.1);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .msg__charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .msg {
   display: flex;
   gap: 12px;

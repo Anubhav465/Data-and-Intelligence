@@ -5,7 +5,8 @@ import re
 import requests
 from dotenv import load_dotenv
 from schema_extractor import extract_schema
-from dynamic_retriever import get_schema_context, retrieve_relevant_chunks
+from dynamic_retriever import get_schema_context, retrieve_relevant_chunks, _registry
+from difflib import get_close_matches
 
 load_dotenv()
 
@@ -84,6 +85,66 @@ def validate_sql(sql: str):
         raise ValueError("Multiple SQL statements are not allowed.")
 
     return True
+
+
+# ==========================================
+# COLUMN NAME FUZZY MATCHING
+# ==========================================
+
+def fix_column_names_in_sql(sql: str, table_names: list[str]) -> str:
+    """
+    Attempt to fix column name mismatches in SQL by finding close matches
+    from the actual schema columns.
+    """
+    if not table_names:
+        return sql
+    
+    # Get all valid column names from registered tables
+    valid_columns = {}
+    for tn in table_names:
+        entry = _registry.get(tn)
+        if entry and entry.column_specs:
+            for col_spec in entry.column_specs:
+                col_name = col_spec['name']
+                valid_columns[col_name.lower()] = col_name
+    
+    if not valid_columns:
+        return sql
+    
+    # Find potential column references in SQL (word boundaries)
+    # This regex finds identifiers that could be column names
+    pattern = r'\b([a-z_][a-z0-9_]*)\b'
+    
+    def replace_column(match):
+        word = match.group(1)
+        word_lower = word.lower()
+        
+        # Skip SQL keywords
+        sql_keywords = {
+            'select', 'from', 'where', 'join', 'inner', 'left', 'right', 'outer',
+            'on', 'and', 'or', 'not', 'in', 'as', 'by', 'order', 'group', 'having',
+            'limit', 'offset', 'distinct', 'count', 'sum', 'avg', 'max', 'min',
+            'case', 'when', 'then', 'else', 'end', 'with', 'union', 'all'
+        }
+        
+        if word_lower in sql_keywords:
+            return word
+        
+        # If exact match exists, use it
+        if word_lower in valid_columns:
+            return valid_columns[word_lower]
+        
+        # Try fuzzy matching
+        matches = get_close_matches(word_lower, valid_columns.keys(), n=1, cutoff=0.6)
+        if matches:
+            corrected = valid_columns[matches[0]]
+            print(f"[SQL Fixer] Correcting column '{word}' → '{corrected}'")
+            return corrected
+        
+        return word
+    
+    fixed_sql = re.sub(pattern, replace_column, sql, flags=re.IGNORECASE)
+    return fixed_sql
 
 
 # ==========================================
@@ -241,7 +302,11 @@ STRICT RULES — VIOLATE = INVALID:
 - ALWAYS start with SELECT or WITH.
 - ONLY use these exact tables (fully qualified):
 {allowed_refs}
-{single_note}{join_note}- Use column names exactly as shown in the schema.
+{single_note}{join_note}- Use column names EXACTLY as shown in the schema below - do NOT modify or shorten them.
+- If the user mentions a column name that doesn't exist exactly, find the closest matching column from the schema.
+- For example, if user asks for "perimeter" but schema has "perimeter_se", use "perimeter_se".
+- If user asks for "radius" but schema has "radius_se", use "radius_se".
+- ALWAYS check the schema for the exact column name before using it in your SQL.
 - Do NOT add LIMIT yourself.
 
 Schemas:
@@ -289,6 +354,12 @@ Generate SQL for the user question below. Return ONLY the SQL."""
             final_sql = clean_sql_output(extracted)
 
             print(f"[SQL Generator][upload] CLEAN:\n{final_sql}\n{'─'*80}")
+            
+            # Apply column name fuzzy matching fix
+            fixed_sql = fix_column_names_in_sql(final_sql, table_names)
+            if fixed_sql != final_sql:
+                print(f"[SQL Generator][upload] FIXED:\n{fixed_sql}\n{'─'*80}")
+                final_sql = fixed_sql
 
             validate_sql(final_sql)
             _assert_allowed_tables(final_sql, table_names)
@@ -310,34 +381,56 @@ Generate SQL for the user question below. Return ONLY the SQL."""
 
 def _assert_allowed_tables(sql: str, table_names: list[str]) -> None:
     """
-    Raise ValueError if the generated SQL references any table not in
-    table_names.  Prevents prompt-injection attacks targeting other schemas.
-    Accepts a list so multi-table JOIN queries are permitted.
+    Ensure generated SQL only references:
+      - explicitly allowed uploaded tables
+      - CTE aliases defined in WITH clauses
     """
-    lowered = sql.lower()
-    scrubbed = lowered
-    for tn in table_names:
-        scrubbed = scrubbed.replace(f'uploads."{tn}"', "")
-        scrubbed = scrubbed.replace(f"uploads.{tn}", "")
-        scrubbed = scrubbed.replace(tn.lower(), "")
 
-    # SQL keywords that can legally follow FROM/JOIN — never table names
-    _SQL_KEYWORDS = {
-        "", "lateral", "unnest", "select", "where", "limit", "order", "group",
-        "by", "having", "union", "intersect", "except", "with", "as", "on",
-        "and", "or", "not", "null", "true", "false", "case", "when", "then",
-        "else", "end", "in", "between", "like", "is", "distinct", "all",
-        "insert", "update", "delete", "create", "drop", "alter", "set",
-        "returning", "values", "into", "from", "join", "inner", "outer",
-        "left", "right", "full", "cross", "natural", "using", "over",
-        "partition", "window", "filter", "within", "rows", "range",
+    # Allowed physical table references
+    allowed_refs = {
+        f'uploads."{name}"'.lower()
+        for name in table_names
     }
+    allowed_refs.update({
+        f'uploads.{name}'.lower()
+        for name in table_names
+    })
 
-    suspicious = re.findall(r"\bfrom\s+(\w+\.?\w+)", scrubbed)
-    suspicious += re.findall(r"\bjoin\s+(\w+\.?\w+)", scrubbed)
-    suspicious = [s for s in suspicious if s not in _SQL_KEYWORDS]
+    # Extract CTE names from:
+    # WITH cte_name AS (...), another_cte AS (...)
+    cte_names = set(
+        match.group(1).lower()
+        for match in re.finditer(
+            r'(?:with|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s*\(',
+            sql,
+            flags=re.IGNORECASE
+        )
+    )
 
-    if suspicious:
+    # Extract all FROM and JOIN references
+    refs = set(
+        match.group(1).strip().lower()
+        for match in re.finditer(
+            r'\b(?:from|join)\s+([a-zA-Z0-9_."]+)',
+            sql,
+            flags=re.IGNORECASE
+        )
+    )
+
+    unauthorized = []
+
+    for ref in refs:
+        # Allow CTE aliases
+        if ref in cte_names:
+            continue
+
+        # Allow uploaded tables
+        if ref in allowed_refs:
+            continue
+
+        unauthorized.append(ref)
+
+    if unauthorized:
         raise ValueError(
-            f"Generated SQL references unauthorised tables: {suspicious}"
+            f"Generated SQL references unauthorised tables: {unauthorized}"
         )

@@ -17,7 +17,10 @@ from langchain_core.output_parsers import PydanticOutputParser
 
 from app.models.state import AnalyticsState, IntentClassification
 from app.agents import SQLGeneratorAgent, SummaryAgent, AnomalyAgent, ForecastAgent
+from app.agents.metadata_agent import MetadataAgent
 from app.tools.sql_tools import execute_sql_with_agent
+from app.memory import get_memory_manager, get_greeting_prompt, get_name_introduction_prompt, get_casual_chat_prompt, get_out_of_scope_prompt
+from app.memory.memory_summarizer import get_summarizer
 
 # Import existing modules for compatibility
 import sys
@@ -50,6 +53,7 @@ class AnalyticsWorkflow:
         self.summary_agent = SummaryAgent()
         self.anomaly_agent = AnomalyAgent()
         self.forecast_agent = ForecastAgent()
+        self.metadata_agent = MetadataAgent()
         
         # Intent classifier
         self.intent_llm = ChatOpenAI(
@@ -69,6 +73,8 @@ class AnalyticsWorkflow:
         
         # Add nodes
         workflow.add_node("classify_intent", self.classify_intent_node)
+        workflow.add_node("handle_greeting", self.handle_greeting_node)
+        workflow.add_node("handle_metadata", self.handle_metadata_node)  # NEW
         workflow.add_node("generate_sql", self.generate_sql_node)
         workflow.add_node("execute_query", self.execute_query_node)
         workflow.add_node("repair_sql", self.repair_sql_node)
@@ -86,10 +92,16 @@ class AnalyticsWorkflow:
             "classify_intent",
             self.route_after_intent,
             {
+                "greeting": "handle_greeting",
+                "metadata": "handle_metadata",  # NEW
                 "sql": "generate_sql",
                 "end": END
             }
         )
+        
+        # Greeting and metadata go directly to build_response
+        workflow.add_edge("handle_greeting", "build_response")
+        workflow.add_edge("handle_metadata", "build_response")  # NEW
         
         workflow.add_edge("generate_sql", "execute_query")
         
@@ -129,16 +141,54 @@ class AnalyticsWorkflow:
         
         question = state["question"]
         
+        # Get available tables/datasets for context
+        table_names = state.get("table_names", [])
+        has_data = bool(table_names)
+        
+        data_context = ""
+        if has_data:
+            data_context = f"\n\nAvailable datasets: {', '.join(table_names)}"
+        
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an intent classifier for an analytics system.
+            ("system", """You are an intent classifier for a DATA ANALYTICS system.
+
+IMPORTANT: This system ONLY handles data analysis questions. Detect out-of-scope questions.
 
 Classify the user's question into one of these intents:
-- sql_query: User wants to query data
-- forecast: User wants time-series predictions
-- anomaly: User wants to detect outliers
-- summary: User just wants a summary of existing data
+- greeting: Simple greetings like "hi", "hello", "hey"
+- name_introduction: User introducing themselves ("my name is X", "I'm X", "call me X")
+- casual_chat: Questions about system capabilities ("what can you do", "help")
+- metadata: Questions about dataset structure (columns, data types, shape, missing values, preview, statistics)
+- sql_query: User wants to query/analyze their uploaded data
+- forecast: User wants time-series predictions on their data
+- anomaly: User wants to detect outliers in their data
+- knowledge_graph: User wants to build a knowledge graph from their data
+- summary: User wants a summary of their data
+- out_of_scope: Questions about topics OUTSIDE data analytics (weather, sports, news, general knowledge, etc.)
 
-Determine if SQL execution, forecasting, or anomaly detection is needed.
+METADATA QUERY EXAMPLES:
+- "Show me all column names and their data types" → metadata
+- "What is the shape of my dataset?" → metadata
+- "Are there any missing values?" → metadata
+- "Show me the first 10 rows" → metadata
+- "Give me summary statistics" → metadata
+- "What columns do I have?" → metadata
+- "How many rows and columns?" → metadata
+
+OUT OF SCOPE EXAMPLES:
+- "What's the weather today?" → out_of_scope (weather)
+- "Who won the game?" → out_of_scope (sports)
+- "Tell me about history" → out_of_scope (general knowledge)
+- "What's the capital of France?" → out_of_scope (geography)
+- "How do I cook pasta?" → out_of_scope (cooking)
+
+IN SCOPE EXAMPLES:
+- "Show me sales trends" → sql_query
+- "Detect anomalies in revenue" → anomaly
+- "Forecast next month's orders" → forecast
+- "What's in my dataset?" → summary
+
+If the question is clearly about a topic unrelated to data analysis, mark it as out_of_scope and provide a rejection_reason.{data_context}
 
 Your response must be valid JSON matching the IntentClassification schema."""),
             ("human", "Question: {question}\n\n{format_instructions}")
@@ -149,16 +199,119 @@ Your response must be valid JSON matching the IntentClassification schema."""),
         try:
             result = chain.invoke({
                 "question": question,
+                "data_context": data_context,
                 "format_instructions": self.intent_parser.get_format_instructions()
             })
             
             state["intent"] = result.intent
             state["source"] = "langchain_workflow"
             
+            # Store out-of-scope info if detected
+            if result.intent == "out_of_scope":
+                state["error"] = result.rejection_reason or "This question is outside the scope of data analytics."
+            
         except Exception as e:
             # Default to SQL query on error
             state["intent"] = "sql_query"
             print(f"Intent classification error: {str(e)}")
+        
+        return state
+    
+    def handle_metadata_node(self, state: AnalyticsState) -> AnalyticsState:
+        """Handle metadata queries about dataset structure"""
+        return self.metadata_agent.answer_metadata_question(state)
+    
+    def handle_greeting_node(self, state: AnalyticsState) -> AnalyticsState:
+        """Handle greetings, introductions, casual chat, and out-of-scope rejections"""
+        
+        question = state["question"]
+        intent = state.get("intent", "greeting")
+        user_profile = state.get("user_profile", {})
+        conversation_history = state.get("conversation_history", [])
+        
+        # Handle out-of-scope questions
+        if intent == "out_of_scope":
+            # Extract topic from question for better rejection message
+            topic = "that topic"
+            question_lower = question.lower()
+            if any(word in question_lower for word in ["weather", "temperature", "rain", "sunny"]):
+                topic = "weather"
+            elif any(word in question_lower for word in ["sport", "game", "match", "score"]):
+                topic = "sports"
+            elif any(word in question_lower for word in ["news", "current events", "politics"]):
+                topic = "news and current events"
+            elif any(word in question_lower for word in ["cook", "recipe", "food"]):
+                topic = "cooking"
+            elif any(word in question_lower for word in ["history", "historical"]):
+                topic = "history"
+            
+            prompt_text = get_out_of_scope_prompt(question, topic, user_profile, conversation_history)
+            
+            try:
+                response = self.intent_llm.invoke(prompt_text)
+                response_text = response.content if hasattr(response, 'content') else str(response)
+                state["summary"] = response_text
+                state["response"] = response_text
+            except Exception as e:
+                print(f"[Out-of-Scope Handler] Error: {e}")
+                user_name = user_profile.get("name") if user_profile else None
+                name_part = f"{user_name}, " if user_name else ""
+                state["summary"] = f"I'm sorry {name_part}but I can only help with data analytics questions. I specialize in analyzing your uploaded datasets, creating visualizations, detecting anomalies, and forecasting trends. Would you like to explore your data instead?"
+                state["response"] = state["summary"]
+            
+            return state
+        
+        # Get appropriate prompt based on intent
+        if intent == "name_introduction":
+            prompt_text = get_name_introduction_prompt(question)
+            
+            # Extract name from message
+            summarizer = get_summarizer()
+            extracted_name = summarizer.extract_name_from_message(question)
+            
+            if extracted_name:
+                # Update user profile in state
+                if not user_profile:
+                    user_profile = {}
+                user_profile["name"] = extracted_name
+                state["user_profile"] = user_profile
+                
+                # Store in memory
+                session_id = state.get("session_id")
+                if session_id:
+                    memory = get_memory_manager()
+                    memory.add_conversation_turn(
+                        session_id=session_id,
+                        user_message=question,
+                        assistant_response="",  # Will be filled after generation
+                        intent=intent,
+                        extracted_facts={"user_name": extracted_name}
+                    )
+        
+        elif intent == "casual_chat":
+            prompt_text = get_casual_chat_prompt(question, user_profile, conversation_history)
+        else:
+            # greeting
+            prompt_text = get_greeting_prompt(question, user_profile, conversation_history)
+        
+        # Generate response using LLM
+        try:
+            response = self.intent_llm.invoke(prompt_text)
+            response_text = response.content if hasattr(response, 'content') else str(response)
+            
+            state["summary"] = response_text
+            state["response"] = response_text
+            
+        except Exception as e:
+            print(f"[Greeting Handler] Error: {e}")
+            user_name = user_profile.get("name") if user_profile else None
+            if intent == "name_introduction" and user_name:
+                state["summary"] = f"Nice to meet you, {user_name}! I'm Neural Analytics 2.0, your AI analytics assistant. What would you like to analyze today?"
+            elif user_name:
+                state["summary"] = f"Hi {user_name}! How can I help you today?"
+            else:
+                state["summary"] = "Hi! How can I help you today? I can analyze your data, create visualizations, detect anomalies, and more."
+            state["response"] = state["summary"]
         
         return state
     
@@ -315,11 +468,18 @@ Fix the query and return only the corrected SQL.""")
     
     # ========== ROUTING FUNCTIONS ==========
     
-    def route_after_intent(self, state: AnalyticsState) -> Literal["sql", "end"]:
+    def route_after_intent(self, state: AnalyticsState) -> Literal["greeting", "metadata", "sql", "end"]:
         """Route based on classified intent"""
         intent = state.get("intent", "sql_query")
         
-        if intent in ["sql_query", "forecast", "anomaly"]:
+        # Route conversational intents and out-of-scope to greeting handler
+        if intent in ["greeting", "name_introduction", "casual_chat", "out_of_scope"]:
+            return "greeting"
+        # Route metadata queries to metadata handler
+        elif intent == "metadata":
+            return "metadata"
+        # Route analytical intents to SQL generation
+        elif intent in ["sql_query", "forecast", "anomaly", "knowledge_graph"]:
             return "sql"
         else:
             return "end"
@@ -360,7 +520,10 @@ Fix the query and return only the corrected SQL.""")
     def process_question(
         self,
         question: str,
-        table_names: list = None
+        table_names: list = None,
+        session_id: str = None,
+        conversation_history: list = None,
+        user_profile: dict = None
     ) -> dict:
         """
         Process a natural language question through the workflow.
@@ -368,6 +531,9 @@ Fix the query and return only the corrected SQL.""")
         Args:
             question: Natural language question
             table_names: Optional list of table names for uploaded data
+            session_id: Session ID for conversation memory
+            conversation_history: Previous conversation turns
+            user_profile: User profile with name and preferences
         
         Returns:
             Complete response dict with SQL, data, charts, summary, etc.
@@ -379,6 +545,12 @@ Fix the query and return only the corrected SQL.""")
         initial_state: AnalyticsState = {
             "question": question,
             "table_names": table_names,
+            "document_ids": None,
+            "session_id": session_id,
+            "conversation_history": conversation_history or [],
+            "user_profile": user_profile or {},
+            "key_findings": [],
+            "conversation_summary": None,
             "schema_context": None,
             "relevant_tables": None,
             "sql": None,
@@ -393,6 +565,8 @@ Fix the query and return only the corrected SQL.""")
             "summary": None,
             "anomalies": None,
             "forecast": None,
+            "knowledge_graph": None,
+            "sources": None,
             "execution_time_ms": None,
             "source": None,
             "intent": None,
