@@ -1,0 +1,95 @@
+.sidebar {
+  position: relative;
+  z-index: 15;
+  height: 100%;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: rgba(5, 12, 30, 0.92);
+  border-right: 1px solid var(--border-subtle);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.sidebar__inner {
+  width: 264px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Divider */
+.sidebar__divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 8px 0;
+}
+
+/* Section */
+.sidebar__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar__section-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 2px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+/* Spacer — pushes version history to the bottom */
+.sidebar__spacer {
+  flex: 1;
+  min-height: 16px;
+}
+
+/* Empty state */
+.sidebar__empty {
+  padding: 12px 4px;
+}
+
+.sidebar__empty-text {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Toggle button */
+.sidebar__toggle {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 48px;
+  background: rgba(5, 12, 30, 0.92);
+  border: 1px solid var(--border-subtle);
+  border-left: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  align-self: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.sidebar__toggle:hover {
+  color: var(--cyan);
+  background: rgba(34, 211, 238, 0.08);
+  border-color: rgba(34, 211, 238, 0.25);
+}
+
+.sidebar__toggle--collapsed {
+  border-left: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}

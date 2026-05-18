@@ -1,0 +1,18 @@
+.chart-container {
+  margin: 16px 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  padding: 16px;
+  background: rgba(2, 10, 28, 0.7);
+  border: 1px solid var(--border-subtle);
+}
+
+.chart-canvas {
+  position: relative;
+}
+
+.chart-unsupported {
+  color: var(--amber);
+  font-size: 0.875rem;
+  padding: 16px;
+}

@@ -1,0 +1,38 @@
+.suggestions {
+  margin-top: 32px;
+}
+
+.suggestions__label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.suggestions__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.suggestions__chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid;
+  transition: all var(--transition-base);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.suggestions__chip:hover {
+  background: color-mix(in srgb, var(--chip-color, #22d3ee) 15%, transparent) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--chip-color, #22d3ee) 25%, transparent);
+}

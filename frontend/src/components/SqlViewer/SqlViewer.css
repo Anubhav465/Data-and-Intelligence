@@ -1,0 +1,130 @@
+.sql-viewer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(34, 211, 238, 0.08);
+}
+
+.sql-viewer__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(148, 163, 184, 0.6);
+  transition: color var(--transition-fast);
+  cursor: pointer;
+}
+
+.sql-viewer__toggle:hover {
+  color: var(--text-secondary);
+}
+
+.sql-viewer__toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.sql-viewer__source {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--purple-glow);
+}
+
+.sql-viewer__panel {
+  margin-top: 8px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid rgba(168, 85, 247, 0.15);
+}
+
+.sql-viewer__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(168, 85, 247, 0.07);
+  border-bottom: 1px solid rgba(168, 85, 247, 0.12);
+}
+
+.sql-viewer__toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sql-viewer__lang {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: var(--purple);
+}
+
+.sql-viewer__time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.sql-viewer__copy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text-muted);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.sql-viewer__copy:hover {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-secondary);
+}
+
+.sql-viewer__copy--done {
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--emerald);
+  border-color: rgba(52, 211, 153, 0.25);
+}
+
+.sql-viewer__code {
+  padding: 16px;
+  overflow-x: auto;
+  background: rgba(2, 6, 20, 0.9);
+}
+
+.sql-viewer__pre {
+  font-size: 0.75rem;
+  line-height: 1.7;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Syntax highlighting */
+.sql-keyword {
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.sql-string {
+  color: var(--emerald);
+}
+
+.sql-number {
+  color: var(--amber);
+}

@@ -1,0 +1,151 @@
+.chat-input-wrapper {
+  padding: 16px;
+  position: relative;
+  z-index: 20;
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(2, 6, 23, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.chat-input-compact {
+  /* no extra chrome */
+}
+
+.chat-input-inner {
+  max-width: 768px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.chat-input-inner-compact {
+  position: relative;
+}
+
+.chat-input-box {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.chat-input-box:focus-within {
+  border-color: rgba(34, 211, 238, 0.5);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.15), 0 0 24px rgba(34, 211, 238, 0.1);
+}
+
+.chat-input-accent {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 24px;
+  border-radius: 0 2px 2px 0;
+  opacity: 0.7;
+}
+
+.chat-input-textarea {
+  flex: 1;
+  background: transparent;
+  resize: none;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  line-height: 1.6;
+  border: none;
+  outline: none;
+  padding-left: 12px;
+  max-height: 120px;
+  min-height: 24px;
+  font-family: var(--font-body);
+}
+
+.chat-input-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.chat-input-textarea:disabled {
+  opacity: 0.6;
+}
+
+.chat-input-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  transition: all var(--transition-base);
+}
+
+.chat-input-btn--active {
+  background: var(--gradient-accent);
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.25);
+  cursor: pointer;
+}
+
+.chat-input-btn--active:hover {
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.4);
+}
+
+.chat-input-btn--disabled {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: not-allowed;
+}
+
+.chat-input-btn--loading {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.chat-input-hint {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 8px;
+}
+
+/* ── Active dataset badge ─────────────────────────────────────── */
+.chat-input-dataset-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(34, 211, 238, 0.07);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  width: fit-content;
+}
+
+.chat-input-dataset-badge strong {
+  color: var(--cyan);
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.chat-input-badge-rows {
+  padding-left: 6px;
+  border-left: 1px solid rgba(34, 211, 238, 0.2);
+  color: var(--text-dim);
+}
+
+.chat-input-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+}
