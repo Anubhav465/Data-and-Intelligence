@@ -1,0 +1,86 @@
+Table: customers
+Columns:
+customer_city (text)
+customer_unique_id (text)
+customer_id (text)
+customer_zip_code_prefix (integer)
+customer_state (character)
+---
+Table: geolocation
+Columns:
+geolocation_city (text)
+geolocation_state (character)
+geolocation_zip_code_prefix (integer)
+geolocation_lng (numeric)
+geolocation_lat (numeric)
+---
+Table: order_delivery_metrics
+Columns:
+order_delivered_customer_date (timestamp without time zone)
+delivery_delay_days (numeric)
+order_id (text)
+order_estimated_delivery_date (timestamp without time zone)
+---
+Table: order_items
+Columns:
+order_item_id (integer)
+shipping_limit_date (timestamp without time zone)
+price (numeric)
+freight_value (numeric)
+order_id (text)
+product_id (text)
+seller_id (text)
+---
+Table: orders
+Columns:
+order_estimated_delivery_date (timestamp without time zone)
+order_purchase_timestamp (timestamp without time zone)
+order_approved_at (timestamp without time zone)
+order_status (text)
+customer_id (text)
+order_id (text)
+order_delivered_carrier_date (timestamp without time zone)
+order_delivered_customer_date (timestamp without time zone)
+---
+Table: payments
+Columns:
+payment_value (numeric)
+order_id (text)
+payment_type (text)
+payment_sequential (integer)
+payment_installments (integer)
+---
+Table: product_category_name_translation
+Columns:
+product_category_name (text)
+product_category_name_english (text)
+---
+Table: products
+Columns:
+product_height_cm (integer)
+product_description_length (integer)
+product_category_name (text)
+product_id (text)
+product_name_length (integer)
+product_photos_qty (integer)
+product_length_cm (integer)
+product_weight_g (integer)
+product_width_cm (integer)
+---
+Table: reviews
+Columns:
+review_comment_title (text)
+review_comment_message (text)
+review_answer_timestamp (timestamp without time zone)
+review_creation_date (timestamp without time zone)
+review_score (integer)
+review_id (text)
+order_id (text)
+---
+Table: sellers
+Columns:
+seller_city (text)
+seller_id (text)
+seller_zip_code_prefix (integer)
+seller_state (character)
+---

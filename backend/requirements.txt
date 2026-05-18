@@ -1,0 +1,40 @@
+# Core Framework & Web Server
+fastapi
+uvicorn
+starlette
+
+# File upload support (required for FastAPI UploadFile)
+python-multipart
+
+# Data Validation
+pydantic
+pydantic-core
+
+# Database & SQL
+sqlalchemy
+psycopg2-binary
+
+# Data Processing
+pandas
+numpy
+
+# AI/LLM
+cohere
+faiss-cpu
+
+# HTTP & Requests
+requests
+httpx
+
+# Environment & Configuration
+python-dotenv
+
+# Utilities
+tabulate
+
+# Type Hints
+typing-extensions
+python-multipart
+
+# Production Server
+gunicorn[uvicorn]>=21.0
